@@ -1,0 +1,16 @@
+[Desktop Entry]
+Comment=Provide the status of hosts and services for an Icinga instance
+Name=Icinga Status Monitor Plasmoid
+ServiceTypes=Plasma/Applet
+Type=Service
+
+X-KDE-Library=icinga_plasmoid
+X-KDE-PluginInfo-Author=Markus Holtermann
+X-KDE-PluginInfo-Category=Network
+X-KDE-PluginInfo-Email=info@markusholtermann.eu
+X-KDE-PluginInfo-EnabledByDefault=true
+X-KDE-PluginInfo-License=GPLv3
+X-KDE-PluginInfo-Name=icinga
+X-KDE-PluginInfo-Version=0.0
+X-KDE-PluginInfo-Website=http://markusholtermann.eu
+X-KDE-ServiceTypes=Plasma/Applet
