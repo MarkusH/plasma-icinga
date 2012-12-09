@@ -88,13 +88,21 @@ Plasma::DataEngine::Data IcingaDataEngine::intepretData(const QMap<QString, QVar
     int state[] = {0, 0, 0, 0, 0};
     QVariantMap service;
     QVariantMap hosts;
+    QVariantList messages[] = {QVariantList(), QVariantList(), QVariantList(), QVariantList()};
     foreach (QVariant _service, service_status) {
         service = _service.toMap();
         stateType = stateToInt(service["status"].toString());
-	state[stateType]++;
-	if (stateType > state[4] && !(service["in_scheduled_downtime"].toBool() || service["has_been_acknowledged"].toBool())) {
-	  state[4] = stateType;
-	}
+        state[stateType]++;
+        QVariantMap msg;
+        msg["host"] = service["host_display_name"];
+        msg["service"] = service["service_display_name"];
+        msg["downtime"] = service["in_scheduled_downtime"]; // bool
+        msg["ack"] = service["has_been_acknowledged"]; // bool
+        msg["msg"] = service["status_information"];
+        messages[stateType] << msg;
+        if (stateType > state[4] && !(service["in_scheduled_downtime"].toBool() || service["has_been_acknowledged"].toBool())) {
+            state[4] = stateType;
+        }
         if (!hosts.contains(service["host_name"].toString())) {
             hosts[service["host_name"].toString()] = service["host_display_name"].toString();
         }
@@ -107,6 +115,11 @@ Plasma::DataEngine::Data IcingaDataEngine::intepretData(const QMap<QString, QVar
     data["status-critical"] = state[2];
     data["status-unknown"] = state[3];
     data["realstatus"] = state[4];
+
+    data["msg-ok"] = messages[0];
+    data["msg-warning"] = messages[1];
+    data["msg-critical"] = messages[2];
+    data["msg-unknown"] = messages[3];
     return data;
 }
 
