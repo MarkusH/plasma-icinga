@@ -20,30 +20,52 @@
 #ifndef ICINGAMONITOR_H
 #define ICINGAMONITOR_H
 
+#include <QtGui/QWidget>
+#include <QtGui/QGraphicsLayoutItem>
+#include <QtGui/QListWidgetItem>
+
 #include <KConfig>
 #include <KConfigGroup>
 
-#include <Plasma/Applet>
 #include <Plasma/DataEngine>
+#include <Plasma/PopupApplet>
+
+#include "extendedstatus.h"
 
 class QSizeF;
 
-class IcingaPlasmoid : public Plasma::Applet
+class IcingaPlasmoid : public Plasma::PopupApplet
 {
     Q_OBJECT
 
 public:
-    IcingaPlasmoid(QObject *parent, const QVariantList &args);
+    IcingaPlasmoid(QObject* parent, const QVariantList& args);
+    virtual ~IcingaPlasmoid();
     void init();
     void paintInterface(QPainter *painter, const QStyleOptionGraphicsItem *option, const QRect &contentsRect);
 
-protected slots:
+    QGraphicsWidget *graphicsWidget();
+    static const QColor CLR_OK;
+    static const QColor CLR_WARNING;
+    static const QColor CLR_CRITICAL;
+    static const QColor CLR_UNKNOWN;
+    static const QColor CLR_UNINITIALIZED;
+
+Q_SIGNALS:
+    void dataUpdated();
+    void popupUpdated();
+
+protected Q_SLOTS:
     void constraintsEvent(Plasma::Constraints constraints);
-    void dataUpdated( const QString& source, const Plasma::DataEngine::Data& data);
+    void dataUpdated(const QString& source, const Plasma::DataEngine::Data& data);
     void resetSize();
 
-private:
+private Q_SLOTS:
+    void updatePopup();
     void updateSize();
+
+private:
+    QGraphicsLayoutItem* createLogItem(const QVariantMap map, const QColor color);
     void expandFontToMax();
 
     int m_statusOk;
@@ -53,10 +75,23 @@ private:
     int m_realstatus;
     int m_servicesCount;
     int m_hostsCount;
+    QVariantList m_msgOk;
+    QVariantList m_msgWarning;
+    QVariantList m_msgCritical;
+    QVariantList m_msgUnknown;
+    QDateTime m_lastUpdate;
     KConfig m_config;
     KConfigGroup m_generalcg;
     QString m_text;
     QFont m_font;
+    ExtendedStatus* m_popup;
 };
+
+const QColor IcingaPlasmoid::CLR_OK(0, 255, 0, 64);
+const QColor IcingaPlasmoid::CLR_WARNING(255, 255, 0, 64);
+const QColor IcingaPlasmoid::CLR_CRITICAL(255, 0, 0, 64);
+const QColor IcingaPlasmoid::CLR_UNKNOWN(255, 0, 255, 64);
+const QColor IcingaPlasmoid::CLR_UNINITIALIZED(0, 0, 255, 64);
+
 
 #endif // ICINGAMONITOR_H

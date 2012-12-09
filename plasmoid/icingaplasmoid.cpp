@@ -23,8 +23,10 @@
 
 #include <KGlobalSettings>
 
+#include <Plasma/IconWidget>
+
 IcingaPlasmoid::IcingaPlasmoid(QObject *parent, const QVariantList &args)
-    : Plasma::Applet(parent, args),
+    : Plasma::PopupApplet(parent, args),
       m_statusOk(-1),
       m_statusWarning(-1),
       m_statusCritical(-1),
@@ -32,12 +34,26 @@ IcingaPlasmoid::IcingaPlasmoid(QObject *parent, const QVariantList &args)
       m_realstatus(-1),
       m_servicesCount(-1),
       m_hostsCount(0),
+      m_msgOk(),
+      m_msgWarning(),
+      m_msgCritical(),
+      m_msgUnknown(),
+      m_lastUpdate(QDateTime::fromMSecsSinceEpoch(0)),
       m_config("icingarc"),
       m_text("000/00/00/00\nH:00/S:000")
 {
     setBackgroundHints(DefaultBackground);
     m_generalcg = m_config.group("General");
     resize(100, 100);
+    connect(this, SIGNAL(dataUpdated()), this, SLOT(updatePopup()));
+    connect(this, SIGNAL(dataUpdated()), this, SLOT(updateSize()));
+
+    m_popup = new ExtendedStatus(this);
+    connect(this, SIGNAL(popupUpdated()), m_popup, SLOT(updateSize()));
+}
+
+IcingaPlasmoid::~IcingaPlasmoid()
+{
 }
 
 /*
@@ -56,6 +72,24 @@ void IcingaPlasmoid::init()
 {
     Plasma::Applet::init();
     dataEngine("icinga")->connectSource("all", this, m_generalcg.readEntry<uint>("interval", 300000));
+}
+
+void IcingaPlasmoid::dataUpdated(const QString &source, const Plasma::DataEngine::Data &data)
+{
+    Q_UNUSED(source)
+    m_statusOk = data["status-ok"].toInt();
+    m_statusWarning = data["status-warning"].toInt();
+    m_statusCritical = data["status-critical"].toInt();
+    m_statusUnknown = data["status-unknown"].toInt();
+    m_realstatus = data["realstatus"].toInt();
+    m_servicesCount = data["services-count"].toInt();
+    m_hostsCount = data["hosts-count"].toInt();
+    m_lastUpdate = data["last-update"].toDateTime();
+    m_msgOk = data["msg-ok"].toList();
+    m_msgWarning = data["msg-warning"].toList();
+    m_msgCritical = data["msg-critical"].toList();
+    m_msgUnknown = data["msg-unknown"].toList();
+    emit dataUpdated();
 }
 
 /*
@@ -82,17 +116,9 @@ void IcingaPlasmoid::expandFontToMax()
     } while (true);
 }
 
-void IcingaPlasmoid::dataUpdated(const QString &source, const Plasma::DataEngine::Data &data)
+QGraphicsWidget* IcingaPlasmoid::graphicsWidget()
 {
-    Q_UNUSED(source)
-    m_statusOk = data["status-ok"].toInt();
-    m_statusWarning = data["status-warning"].toInt();
-    m_statusCritical = data["status-critical"].toInt();
-    m_statusUnknown = data["status-unknown"].toInt();
-    m_realstatus = data["realstatus"].toInt();
-    m_servicesCount = data["services-count"].toInt();
-    m_hostsCount = data["hosts-count"].toInt();
-    updateSize();
+    return m_popup;
 }
 
 void IcingaPlasmoid::paintInterface(QPainter *painter, const QStyleOptionGraphicsItem *option, const QRect &contentsRect)
@@ -100,20 +126,20 @@ void IcingaPlasmoid::paintInterface(QPainter *painter, const QStyleOptionGraphic
     Q_UNUSED(option)
     QColor bgcolor, brdcolor;
     switch (m_realstatus) {
-      case 0: // OK
-	bgcolor = QColor(0, 255, 0, 64);
-	break;
-      case 1: // WARNING
-	bgcolor = QColor(255, 255, 0, 64);
-	break;
-      case 2: // CRITICAL
-	bgcolor = QColor(255, 0, 0, 64);
-	break;
-      case 3: // UNKNOWN
-	bgcolor = QColor(255, 0, 255, 64);
-	break;
-      default: // UNINITIALIZED
-	bgcolor = QColor(0, 0, 255, 64);
+    case 0:
+        bgcolor = CLR_OK;
+        break;
+    case 1:
+        bgcolor = CLR_WARNING;
+        break;
+    case 2:
+        bgcolor = CLR_CRITICAL;
+        break;
+    case 3:
+        bgcolor = CLR_UNKNOWN;
+        break;
+    default:
+        bgcolor = CLR_UNINITIALIZED;
     }
     brdcolor = bgcolor;
     brdcolor.setAlpha(192);
@@ -182,6 +208,51 @@ void IcingaPlasmoid::updateSize()
 
     //generatePixmap();
     update();
+}
+
+void IcingaPlasmoid::updatePopup()
+{
+    qDebug() << "enter updatePopup";
+
+    m_popup->setStats(m_lastUpdate, m_hostsCount, m_servicesCount, m_statusOk, m_statusWarning, m_statusCritical, m_statusUnknown);
+
+    m_popup->clearServices();
+
+    QVariantMap msg;
+    foreach(QVariant _msg, m_msgUnknown) {
+        msg = _msg.toMap();
+        m_popup->addService(createLogItem(msg, CLR_UNKNOWN));
+        m_popup->addService(createLogItem(msg, CLR_UNKNOWN));
+    }
+
+    foreach(QVariant _msg, m_msgCritical) {
+        msg = _msg.toMap();
+        m_popup->addService(createLogItem(msg, CLR_CRITICAL));
+        m_popup->addService(createLogItem(msg, CLR_CRITICAL));
+    }
+
+    foreach(QVariant _msg, m_msgWarning) {
+        msg = _msg.toMap();
+        m_popup->addService(createLogItem(msg, CLR_WARNING));
+        m_popup->addService(createLogItem(msg, CLR_WARNING));
+    }
+
+//     foreach(QVariant _msg, m_msgOk) {
+//         msg = _msg.toMap();
+//         m_popup->addService(createLogItem(msg, CLR_OK));
+//         m_popup->addService(createLogItem(msg, CLR_OK));
+//     }
+    emit popupUpdated();
+}
+
+QGraphicsLayoutItem* IcingaPlasmoid::createLogItem(const QVariantMap map, const QColor color) {
+    Plasma::IconWidget* item = new Plasma::IconWidget();
+    item->setText(map["msg"].toString());
+    item->setDrawBackground(true);
+    item->setTextBackgroundColor(color);
+    item->setToolTip(map["host"].toString() + ": " + map["service"].toString());
+    item->setPreferredIconSize(QSizeF(0, 0));
+    return item;
 }
 
 K_EXPORT_PLASMA_APPLET(icinga_plasmoid, IcingaPlasmoid)

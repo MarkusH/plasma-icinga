@@ -17,7 +17,9 @@ include_directories(
     )
 
 # We add our source code here
-set(plasmoid_SRCS icingaplasmoid.cpp)
+set(plasmoid_SRCS
+    icingaplasmoid.cpp
+    extendedstatus.cpp)
 
 # Now make sure all files get to the right place
 kde4_add_plugin(icinga_plasmoid ${plasmoid_SRCS})
