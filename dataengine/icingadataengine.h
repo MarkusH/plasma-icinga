@@ -29,6 +29,8 @@
 
 #include <qjson/parser.h>
 
+class QDateTime;
+
 class IcingaDataEngine : public Plasma::DataEngine
 {
     Q_OBJECT
@@ -50,6 +52,7 @@ private:
     QUrl m_url;
     KConfig m_config;
     KConfigGroup m_generalcg;
+    QDateTime m_lastUpdate;
 
 private slots:
     void updateData();

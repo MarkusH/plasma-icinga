@@ -19,6 +19,7 @@
 
 #include "icingadataengine.h"
 
+#include <QtCore/QDateTime>
 #include <QtNetwork/QNetworkReply>
 #include <QtNetwork/QNetworkRequest>
 
@@ -29,7 +30,8 @@ IcingaDataEngine::IcingaDataEngine(QObject *parent, const QVariantList &args)
       m_manager(parent),
       m_parser(),
       m_name(),
-      m_config("icingarc")
+      m_config("icingarc"),
+      m_lastUpdate()
 {
     // We ignore any arguments - data engines do not have much use for them
     Q_UNUSED(args)
@@ -62,11 +64,11 @@ void IcingaDataEngine::updateData()
     QByteArray data = reply->readAll();
     bool ok;
     QVariantMap result = m_parser.parse(data, &ok).toMap();
+    m_lastUpdate = QDateTime::currentDateTime();
     if (!ok) {
-        qDebug() << "ERROR!";
+        qDebug() << "Error parsing the json data";
     } else {
-        Plasma::DataEngine::Data data = intepretData(result);
-        setData(m_name, data);
+        setData(m_name, intepretData(result));
     }
     reply->deleteLater();
 }
@@ -75,6 +77,7 @@ Plasma::DataEngine::Data IcingaDataEngine::intepretData(const QMap<QString, QVar
 {
     Plasma::DataEngine::Data data;
     data["version"] = result["cgi_json_version"];
+    data["last-update"] = m_lastUpdate;
 
     QVariantMap status = result["status"].toMap();
     QVariantList service_status = status["service_status"].toList();
