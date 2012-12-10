@@ -222,24 +222,20 @@ void IcingaPlasmoid::updatePopup()
     foreach(QVariant _msg, m_msgUnknown) {
         msg = _msg.toMap();
         m_popup->addService(createLogItem(msg, CLR_UNKNOWN));
-        m_popup->addService(createLogItem(msg, CLR_UNKNOWN));
     }
 
     foreach(QVariant _msg, m_msgCritical) {
         msg = _msg.toMap();
-        m_popup->addService(createLogItem(msg, CLR_CRITICAL));
         m_popup->addService(createLogItem(msg, CLR_CRITICAL));
     }
 
     foreach(QVariant _msg, m_msgWarning) {
         msg = _msg.toMap();
         m_popup->addService(createLogItem(msg, CLR_WARNING));
-        m_popup->addService(createLogItem(msg, CLR_WARNING));
     }
 
 //     foreach(QVariant _msg, m_msgOk) {
 //         msg = _msg.toMap();
-//         m_popup->addService(createLogItem(msg, CLR_OK));
 //         m_popup->addService(createLogItem(msg, CLR_OK));
 //     }
     emit popupUpdated();
