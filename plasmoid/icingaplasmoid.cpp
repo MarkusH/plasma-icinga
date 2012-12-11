@@ -27,23 +27,13 @@
 
 IcingaPlasmoid::IcingaPlasmoid(QObject *parent, const QVariantList &args)
     : Plasma::PopupApplet(parent, args),
-      m_statusOk(-1),
-      m_statusWarning(-1),
-      m_statusCritical(-1),
-      m_statusUnknown(-1),
-      m_realstatus(-1),
-      m_servicesCount(-1),
-      m_hostsCount(0),
-      m_msgOk(),
-      m_msgWarning(),
-      m_msgCritical(),
-      m_msgUnknown(),
-      m_lastUpdate(QDateTime::fromMSecsSinceEpoch(0)),
       m_config("icingarc"),
       m_text("000/00/00/00\nH:00/S:000")
 {
+    qDebug() << "constructor";
     setBackgroundHints(DefaultBackground);
     m_generalcg = m_config.group("General");
+    unset();
     resize(100, 100);
     connect(this, SIGNAL(dataUpdated()), this, SLOT(updatePopup()));
     connect(this, SIGNAL(dataUpdated()), this, SLOT(updateSize()));
@@ -68,27 +58,48 @@ void IcingaPlasmoid::constraintsEvent(Plasma::Constraints constraints)
     }
 }
 
+QGraphicsLayoutItem* IcingaPlasmoid::createLogItem(const QString text, const QString tooltip, const QColor color) {
+    qDebug() << "createLogItem" << text << tooltip << color;
+    Plasma::IconWidget* item = new Plasma::IconWidget();
+    item->setText(text);
+    item->setDrawBackground(true);
+    item->setTextBackgroundColor(color);
+    item->setToolTip(tooltip);
+    item->setPreferredIconSize(QSizeF(0, 0));
+    return item;
+}
+
 void IcingaPlasmoid::init()
 {
+    qDebug() << "init";
     Plasma::Applet::init();
     dataEngine("icinga")->connectSource("all", this, m_generalcg.readEntry<uint>("interval", 300000));
 }
 
 void IcingaPlasmoid::dataUpdated(const QString &source, const Plasma::DataEngine::Data &data)
 {
+    qDebug() << "dataUpdated" << source << data;
     Q_UNUSED(source)
-    m_statusOk = data["status-ok"].toInt();
-    m_statusWarning = data["status-warning"].toInt();
-    m_statusCritical = data["status-critical"].toInt();
-    m_statusUnknown = data["status-unknown"].toInt();
-    m_realstatus = data["realstatus"].toInt();
-    m_servicesCount = data["services-count"].toInt();
-    m_hostsCount = data["hosts-count"].toInt();
-    m_lastUpdate = data["last-update"].toDateTime();
-    m_msgOk = data["msg-ok"].toList();
-    m_msgWarning = data["msg-warning"].toList();
-    m_msgCritical = data["msg-critical"].toList();
-    m_msgUnknown = data["msg-unknown"].toList();
+    if (data["connected"].toBool() == true) {
+        qDebug() << "dataUpdated: connected";
+        m_statusOk = data["status-ok"].toInt();
+        m_statusWarning = data["status-warning"].toInt();
+        m_statusCritical = data["status-critical"].toInt();
+        m_statusUnknown = data["status-unknown"].toInt();
+        // make sure that the value is -1 if the key is no realstatus is set
+        m_realstatus = data.contains("realstatus") ? data["realstatus"].toInt() : -1;
+        m_servicesCount = data["services-count"].toInt();
+        m_hostsCount = data["hosts-count"].toInt();
+        m_lastUpdate = data["last-update"].toDateTime();
+        m_msgOk = data["msg-ok"].toList();
+        m_msgWarning = data["msg-warning"].toList();
+        m_msgCritical = data["msg-critical"].toList();
+        m_msgUnknown = data["msg-unknown"].toList();
+    } else {
+        qDebug() << "dataUpdated: not connected";
+        unset();
+        m_msgError = data["error-msg"].toString();
+    }
     emit dataUpdated();
 }
 
@@ -118,6 +129,7 @@ void IcingaPlasmoid::expandFontToMax()
 
 QGraphicsWidget* IcingaPlasmoid::graphicsWidget()
 {
+    qDebug() << "graphicsWidget";
     return m_popup;
 }
 
@@ -158,6 +170,57 @@ void IcingaPlasmoid::paintInterface(QPainter *painter, const QStyleOptionGraphic
 void IcingaPlasmoid::resetSize()
 {
     constraintsEvent(Plasma::SizeConstraint);
+}
+
+void IcingaPlasmoid::unset()
+{
+    qDebug() << "unset";
+    m_statusOk = -1;
+    m_statusWarning = -1;
+    m_statusCritical = -1;
+    m_statusUnknown = -1;
+    m_realstatus = -1;
+    m_servicesCount = -1;
+    m_hostsCount = 0;
+    m_msgOk = QVariantList();
+    m_msgWarning = QVariantList();
+    m_msgCritical = QVariantList();
+    m_msgUnknown = QVariantList();
+    m_msgError = "";
+    m_lastUpdate = QDateTime::fromMSecsSinceEpoch(0);
+}
+
+void IcingaPlasmoid::updatePopup()
+{
+    qDebug() << "updatePopup";
+
+    m_popup->clearServices();
+    m_popup->setStats(m_lastUpdate, m_hostsCount, m_servicesCount, m_statusOk, m_statusWarning, m_statusCritical, m_statusUnknown);
+    if (m_msgError != "") {
+        m_popup->addService(createLogItem(m_msgError, "", CLR_UNINITIALIZED));
+    }
+
+    QVariantMap msg;
+    foreach(QVariant _msg, m_msgUnknown) {
+        msg = _msg.toMap();
+        m_popup->addService(createLogItem(msg["msg"].toString(), msg["host"].toString() + ": " + msg["service"].toString(), CLR_UNKNOWN));
+    }
+
+    foreach(QVariant _msg, m_msgCritical) {
+        msg = _msg.toMap();
+        m_popup->addService(createLogItem(msg["msg"].toString(), msg["host"].toString() + ": " + msg["service"].toString(), CLR_CRITICAL));
+    }
+
+    foreach(QVariant _msg, m_msgWarning) {
+        msg = _msg.toMap();
+        m_popup->addService(createLogItem(msg["msg"].toString(), msg["host"].toString() + ": " + msg["service"].toString(), CLR_WARNING));
+    }
+
+//     foreach(QVariant _msg, m_msgOk) {
+//         msg = _msg.toMap();
+//         m_popup->addService(createLogItem(msg, CLR_OK));
+//     }
+    emit popupUpdated();
 }
 
 /*
@@ -208,47 +271,6 @@ void IcingaPlasmoid::updateSize()
 
     //generatePixmap();
     update();
-}
-
-void IcingaPlasmoid::updatePopup()
-{
-    qDebug() << "enter updatePopup";
-
-    m_popup->setStats(m_lastUpdate, m_hostsCount, m_servicesCount, m_statusOk, m_statusWarning, m_statusCritical, m_statusUnknown);
-
-    m_popup->clearServices();
-
-    QVariantMap msg;
-    foreach(QVariant _msg, m_msgUnknown) {
-        msg = _msg.toMap();
-        m_popup->addService(createLogItem(msg, CLR_UNKNOWN));
-    }
-
-    foreach(QVariant _msg, m_msgCritical) {
-        msg = _msg.toMap();
-        m_popup->addService(createLogItem(msg, CLR_CRITICAL));
-    }
-
-    foreach(QVariant _msg, m_msgWarning) {
-        msg = _msg.toMap();
-        m_popup->addService(createLogItem(msg, CLR_WARNING));
-    }
-
-//     foreach(QVariant _msg, m_msgOk) {
-//         msg = _msg.toMap();
-//         m_popup->addService(createLogItem(msg, CLR_OK));
-//     }
-    emit popupUpdated();
-}
-
-QGraphicsLayoutItem* IcingaPlasmoid::createLogItem(const QVariantMap map, const QColor color) {
-    Plasma::IconWidget* item = new Plasma::IconWidget();
-    item->setText(map["msg"].toString());
-    item->setDrawBackground(true);
-    item->setTextBackgroundColor(color);
-    item->setToolTip(map["host"].toString() + ": " + map["service"].toString());
-    item->setPreferredIconSize(QSizeF(0, 0));
-    return item;
 }
 
 K_EXPORT_PLASMA_APPLET(icinga_plasmoid, IcingaPlasmoid)

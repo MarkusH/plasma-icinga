@@ -65,8 +65,9 @@ private Q_SLOTS:
     void updateSize();
 
 private:
-    QGraphicsLayoutItem* createLogItem(const QVariantMap map, const QColor color);
+    QGraphicsLayoutItem* createLogItem(const QString text, const QString tooltip, const QColor color);
     void expandFontToMax();
+    void unset();
 
     int m_statusOk;
     int m_statusWarning;
@@ -79,6 +80,7 @@ private:
     QVariantList m_msgWarning;
     QVariantList m_msgCritical;
     QVariantList m_msgUnknown;
+    QString m_msgError;
     QDateTime m_lastUpdate;
     KConfig m_config;
     KConfigGroup m_generalcg;
