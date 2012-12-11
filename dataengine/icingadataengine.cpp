@@ -25,6 +25,8 @@
 
 #include <Plasma/DataContainer>
 
+#include <Solid/Networking>
+
 IcingaDataEngine::IcingaDataEngine(QObject *parent, const QVariantList &args)
     : Plasma::DataEngine(parent, args),
       m_manager(parent),
@@ -33,48 +35,69 @@ IcingaDataEngine::IcingaDataEngine(QObject *parent, const QVariantList &args)
       m_config("icingarc"),
       m_lastUpdate()
 {
+    qDebug() << "constructor";
     // We ignore any arguments - data engines do not have much use for them
     Q_UNUSED(args)
 
     m_generalcg = m_config.group("General");
     m_url = m_generalcg.readEntry("url", QString());
+    m_hasNetwork = (Solid::Networking::status() == Solid::Networking::Connected);
 
     setMinimumPollingInterval(60000);
+    connect(Solid::Networking::notifier(), SIGNAL(shouldDisconnect()), this, SLOT(networkDown()));
+    connect(Solid::Networking::notifier(), SIGNAL(shouldConnect()), this, SLOT(networkUp()));
 }
 
 bool IcingaDataEngine::sourceRequestEvent(const QString &name)
 {
+    qDebug() << "sourceRequestEvent" << name;
     return updateSourceEvent(name);
 }
 
 bool IcingaDataEngine::updateSourceEvent(const QString &name)
 {
+    qDebug() << "updateSourceEvent" << name;
     m_name = name;
-    QNetworkRequest req(m_url);
-    QNetworkReply *reply = m_manager.get(req);
-    connect(reply, SIGNAL(finished()), this, SLOT(updateData()));
-    // We need this line
-    setData(name, DataEngine::Data());
+    setData(name, "connected", m_hasNetwork);
+    if (m_hasNetwork) {
+        setData(name, "error-msg", "");
+        QNetworkRequest req(m_url);
+        QNetworkReply *reply = m_manager.get(req);
+        connect(reply, SIGNAL(finished()), this, SLOT(updateData()));
+        //setData(name, DataEngine::Data());
+    } else {
+        setData(m_name, "error-msg", "Not connected to a network");
+    }
     return true;
 }
 
 void IcingaDataEngine::updateData()
 {
-    QNetworkReply *reply = qobject_cast<QNetworkReply*>(sender());
-    QByteArray data = reply->readAll();
-    bool ok;
-    QVariantMap result = m_parser.parse(data, &ok).toMap();
-    m_lastUpdate = QDateTime::currentDateTime();
-    if (!ok) {
-        qDebug() << "Error parsing the json data";
+    qDebug() << "updateData";
+    QNetworkReply *reply = static_cast<QNetworkReply*>(sender());
+    if (reply->error() == QNetworkReply::NoError) {
+        qDebug() << "updateData: no networ error";
+        QByteArray data = reply->readAll();
+        bool ok;
+        QVariantMap result = m_parser.parse(data, &ok).toMap();
+        m_lastUpdate = QDateTime::currentDateTime();
+        if (!ok) {
+            qDebug() << "Error parsing the json data";
+            setData(m_name, "error-msg", reply->errorString());
+        } else {
+            setData(m_name, "error-msg", "");
+            setData(m_name, interpretData(result));
+        }
     } else {
-        setData(m_name, intepretData(result));
+        qDebug() << "updateData: network error";
+        setData(m_name, "error-msg", reply->errorString());
     }
     reply->deleteLater();
 }
 
-Plasma::DataEngine::Data IcingaDataEngine::intepretData(const QMap<QString, QVariant> result)
+Plasma::DataEngine::Data IcingaDataEngine::interpretData(const QMap<QString, QVariant> result)
 {
+    qDebug() << "interpreteData";
     Plasma::DataEngine::Data data;
     data["version"] = result["cgi_json_version"];
     data["last-update"] = m_lastUpdate;
@@ -121,6 +144,18 @@ Plasma::DataEngine::Data IcingaDataEngine::intepretData(const QMap<QString, QVar
     data["msg-critical"] = messages[2];
     data["msg-unknown"] = messages[3];
     return data;
+}
+
+void IcingaDataEngine::networkDown()
+{
+    qDebug() << "networkDown";
+    m_hasNetwork = false;
+}
+
+void IcingaDataEngine::networkUp()
+{
+    qDebug() << "networkUp";
+    m_hasNetwork = true;
 }
 
 int IcingaDataEngine::stateToInt(const QString state)

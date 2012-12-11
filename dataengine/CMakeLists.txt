@@ -26,6 +26,7 @@ target_link_libraries(icinga_dataengine
     ${KDE4_KDECORE_LIBS}
     ${KDE4_PLASMA_LIBS}
     ${QT_QTNETWORK_LIBRARY}
+    ${KDE4_SOLID_LIBS}
     qjson
     )
 

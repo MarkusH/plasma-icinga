@@ -43,7 +43,7 @@ protected:
     bool updateSourceEvent(const QString &source);
 
 private:
-    Data intepretData(const QMap< QString, QVariant > result);
+    Data interpretData(const QMap< QString, QVariant > result);
     int stateToInt(const QString state);
 
     QNetworkAccessManager m_manager;
@@ -53,9 +53,12 @@ private:
     KConfig m_config;
     KConfigGroup m_generalcg;
     QDateTime m_lastUpdate;
+    bool m_hasNetwork;
 
-private slots:
+private Q_SLOTS:
     void updateData();
+    void networkDown();
+    void networkUp();
 };
 
 #endif // ICINGADATAENGINE_H
